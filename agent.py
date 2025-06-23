@@ -1,54 +1,74 @@
 # agent.py
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv # Importar para carregar variáveis de ambiente
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.agents import AgentExecutor, create_openai_tools_agent
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from tools import Ferramentas # Importe suas ferramentas
 
+# Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") # Embora o ChatOpenAI geralmente pegue automaticamente, é bom ter aqui.
 
 # Inicializar o LLM
-llm = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0.7)
+# Garanta que o LLM tenha acesso à sua chave de API, idealmente via variável de ambiente.
+llm = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0) # Temperatura mais baixa para agentes focados em tarefas
 
-# Histórico de chat global
+# Inicializar as ferramentas
+appointment_tools = Ferramentas()
+tools = [
+    appointment_tools.consulta_disponibilidade,
+    appointment_tools.agenda_consulta
+]
+
+# Histórico de chat global (simplificado para um único chat por vez)
 chat_history = []
 
-# Definir o prompt do chat
+# Definir o prompt do agente
 prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "Você é um assistente de chat prestativo e amigável. Responda às perguntas dos usuários de forma clara e concisa. "
-            "Sua principal função é conversar e responder às dúvidas gerais."
+            "Você é um assistente prestativo que ajuda os usuários a agendar e verificar compromissos. "
+            "Sempre que precisar de uma data, peça-a no formato AAAA-MM-DD. "
+            "Sempre que precisar de um horário, peça-o no formato HH:MM. "
+            "Se for agendar um compromisso, lembre-se de perguntar o nome do cliente. "
+            "Use as ferramentas disponíveis para auxiliar o usuário. "
+            "Se o usuário pedir algo que você não possa fazer, diga que não tem essa capacidade."
         ),
-        MessagesPlaceholder(variable_name="chat_history"), # Usamos 'chat_history' aqui
+        MessagesPlaceholder(variable_name="chat_history"), # Para o contexto da conversa
         ("human", "{input}"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"), # Essencial para o agente usar ferramentas
     ]
 )
 
-# Criar a cadeia de conversa diretamente
-# Esta cadeia vai receber o 'input' (mensagem do usuário) e o 'chat_history'
-chain = prompt | llm
+# Criar o agente
+agent = create_openai_tools_agent(llm, tools, prompt)
+
+# Criar o executor do agente
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True) # verbose=True é ótimo para depuração!
 
 def run_chat_agent(user_message: str) -> str:
     global chat_history # Indica que vamos modificar a variável global
 
     try:
-        # Adiciona a mensagem do usuário ao histórico ANTES de invocar a cadeia
+        # Adicionar a mensagem do usuário ao histórico ANTES de chamar o agente
         chat_history.append(HumanMessage(content=user_message))
 
-        # Invoca a cadeia com a mensagem atual e o histórico completo
-        response = chain.invoke({"input": user_message, "chat_history": chat_history})
-        
-        # A resposta do LLM é do tipo AIMessage, adicione-a ao histórico
-        chat_history.append(AIMessage(content=response.content))
+        # Chamar o agente com a nova mensagem e o histórico
+        # O AgentExecutor.invoke processará a mensagem, decidirá usar ferramentas se necessário,
+        # e retornará a resposta final do agente.
+        response = agent_executor.invoke({"input": user_message, "chat_history": chat_history})
+        agent_response_content = response["output"]
 
-        return response.content
+        # Adicionar a resposta do agente ao histórico
+        chat_history.append(AIMessage(content=agent_response_content))
+
+        return agent_response_content
     except Exception as e:
-        print(f"Erro ao executar o chat: {e}")
+        print(f"Erro ao executar o agente: {e}")
         return "Desculpe, houve um erro ao processar sua solicitação."
-
 
 def reset_chat_history():
     """Reseta o histórico do chat."""
