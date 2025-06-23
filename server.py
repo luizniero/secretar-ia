@@ -1,26 +1,27 @@
 # chat_server.py
 import asyncio
 import websockets
-#from agent import run_agent
-#from tools import check_availability, book_appointment
+from agent import run_chat_agent, reset_chat_history # Importe as funções atualizadas
 
 async def handle_connection(websocket):
-    await websocket.send("Aguarde enquanto sou conectado ao sistema de agendamento...")
+    print("Nova conexão estabelecida.")
+    # Resetar o histórico do chat para cada nova conexão para garantir um novo começo
+    reset_chat_history()
+    await websocket.send("Olá! Sou seu assistente de chat. Como posso te ajudar hoje?")
     async for message in websocket:
         print(f"[Usuário]: {message}")
-        await websocket.send(f"Você disse: {message} — Em breve um atendente virtual irá te ajudar.")
-
-#async def handle_agentic_connection(websocket):
-#    #await websocket.send("Olá! Sou um assistente. Como posso te ajudar?")
-#    async for message in websocket:
-#        print(f"[Usuário]: {message}")
-#        response = run_agent(message)
-#        await websocket.send(response)
+        try:
+            # Use run_chat_agent para processar a mensagem
+            response = run_chat_agent(message)
+            await websocket.send(f"[Assistente]: {response}")
+        except Exception as e:
+            print(f"Erro ao processar mensagem com o agente: {e}")
+            await websocket.send("[Assistente]: Desculpe, houve um problema ao processar sua solicitação. Por favor, tente novamente mais tarde.")
 
 async def main():
     async with websockets.serve(handle_connection, "localhost", 8765):
         print("Servidor WebSocket rodando em ws://localhost:8765")
-        await asyncio.Future()  # run forever
+        await asyncio.Future()  # Executa para sempre
 
 if __name__ == "__main__":
     asyncio.run(main())
