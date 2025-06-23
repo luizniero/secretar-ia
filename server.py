@@ -7,7 +7,7 @@ async def handle_connection(websocket):
     print("Nova conexão estabelecida.")
     # Resetar o histórico do chat para cada nova conexão para garantir um novo começo
     reset_chat_history()
-    await websocket.send("Olá! Sou seu assistente de chat. Como posso te ajudar hoje?")
+    await websocket.send("Olá! Sou a secretar-IA do consultório dos agentes. Como posso te ajudar hoje?")
     async for message in websocket:
         print(f"[Usuário]: {message}")
         try:

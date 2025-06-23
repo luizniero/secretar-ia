@@ -11,9 +11,28 @@ from tools import Ferramentas # Importe suas ferramentas
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") # Embora o ChatOpenAI geralmente pegue automaticamente, é bom ter aqui.
 
+
+# Histórico de chat global (simplificado para um único chat por vez)
+chat_history = []
+
+# Carrega o prompt
+with open("prompt.txt", "r", encoding="utf-8") as file:
+    system_prompt = file.read()
+
+
+# Definir o prompt do agente
+prompt = ChatPromptTemplate.from_messages(
+    [
+        system_prompt,
+        MessagesPlaceholder(variable_name="chat_history"), # Para o contexto da conversa
+        ("human", "{input}"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"), # Essencial para o agente usar ferramentas
+    ]
+)
+
 # Inicializar o LLM
 # Garanta que o LLM tenha acesso à sua chave de API, idealmente via variável de ambiente.
-llm = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0) # Temperatura mais baixa para agentes focados em tarefas
+llm = ChatOpenAI(model="gpt-4o", temperature=0.3) # Temperatura mais baixa para agentes focados em tarefas
 
 # Inicializar as ferramentas
 appointment_tools = Ferramentas()
@@ -22,26 +41,6 @@ tools = [
     appointment_tools.agenda_consulta
 ]
 
-# Histórico de chat global (simplificado para um único chat por vez)
-chat_history = []
-
-# Definir o prompt do agente
-prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            "Você é um assistente prestativo que ajuda os usuários a agendar e verificar compromissos. "
-            "Sempre que precisar de uma data, peça-a no formato AAAA-MM-DD. "
-            "Sempre que precisar de um horário, peça-o no formato HH:MM. "
-            "Se for agendar um compromisso, lembre-se de perguntar o nome do cliente. "
-            "Use as ferramentas disponíveis para auxiliar o usuário. "
-            "Se o usuário pedir algo que você não possa fazer, diga que não tem essa capacidade."
-        ),
-        MessagesPlaceholder(variable_name="chat_history"), # Para o contexto da conversa
-        ("human", "{input}"),
-        MessagesPlaceholder(variable_name="agent_scratchpad"), # Essencial para o agente usar ferramentas
-    ]
-)
 
 # Criar o agente
 agent = create_openai_tools_agent(llm, tools, prompt)
