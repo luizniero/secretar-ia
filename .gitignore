@@ -1,3 +1,5 @@
 /secEnv
 /__pycache__
 .env
+token.json
+credentials.json
